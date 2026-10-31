@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{{ album.name }} · Photo Albums{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('index') }}">← All albums</a>
+<div class="hero">
+  <div><h1>{{ album.name }}</h1><p>{{ album.description or 'A collection of memories.' }}</p><div class="muted">{{ photos|length }} photo{{ 's' if photos|length != 1 else '' }}{% if selected_tag %} matching tag{% endif %}</div></div>
+  <div class="actions"><button class="secondary" onclick="document.getElementById('edit-album').showModal()">Edit album</button>{% if photos %}<a class="button secondary" href="{{ url_for('download_album',album_id=album.id) }}">Download ZIP</a>{% endif %}</div>
+</div>
+<section class="panel upload-panel">
+  <h2>Add photos</h2>
+  <form method="post" action="{{ url_for('upload',album_id=album.id) }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="upload-field">Choose photos from device<input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple required></label>
+    <label class="upload-field">Tags for these photos (comma-separated)<input name="tags" placeholder="Family, Vacation, 2026" maxlength="1000"></label>
+    <button type="submit">Upload photos</button>
+  </form>
+  <div class="divider-text">OR</div>
+  <form method="post" action="{{ url_for('upload',album_id=album.id) }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="upload-field">Take a picture<input type="file" name="photos" accept="image/*" capture="environment" required></label>
+    <label class="upload-field">Tags (optional)<input name="tags" placeholder="Project, Before, Work" maxlength="1000"></label>
+    <button type="submit">Save camera photo</button>
+  </form>
+  <small>On supported phones, Take a picture opens the rear camera. HTTPS is required for reliable camera access. One photo per capture; repeat to add more. Supported uploads: JPG, PNG, WebP, GIF.</small>
+</section>
+{% if available_tags %}
+<nav class="tag-filter" aria-label="Filter photos by tag"><a class="tag {% if not selected_tag %}active{% endif %}" href="{{ url_for('album',album_id=album.id) }}">All photos</a>{% for tag in available_tags %}<a class="tag {% if selected_tag == tag|lower %}active{% endif %}" href="{{ url_for('album',album_id=album.id,tag=tag) }}">{{ tag }}</a>{% endfor %}</nav>
+{% endif %}
+<section class="photo-grid">
+{% for p in photos %}
+  <article class="photo-card">
+    <a href="{{ url_for('serve_photo',photo_id=p.id,kind='view') }}" target="_blank" rel="noopener"><img src="{{ url_for('serve_photo',photo_id=p.id,kind='thumbnail') }}" loading="lazy" alt="{{ p.caption or p.filename }}"></a>
+    <div class="photo-info"><span title="{{ p.filename }}">{{ p.caption or p.filename }}</span><div class="photo-actions"><a href="{{ url_for('serve_photo',photo_id=p.id,kind='download') }}" aria-label="Download">↓</a><button class="link-button" onclick="document.getElementById('photo-{{ p.id }}').showModal()">Edit</button></div></div>
+    {% if p.tags %}<div class="photo-tags">{% for tag in p.tags.split(',') %}<a class="tag mini" href="{{ url_for('album',album_id=album.id,tag=tag.strip()) }}">{{ tag.strip() }}</a>{% endfor %}</div>{% endif %}
+  </article>
+  <dialog id="photo-{{ p.id }}"><h2>Edit photo</h2>
+    <form method="post" action="{{ url_for('edit_photo',photo_id=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Caption<input name="caption" value="{{ p.caption }}" maxlength="250"></label><label>Tags (comma-separated)<input name="tags" value="{{ p.tags }}" maxlength="1000" placeholder="Family, Vacation, 2026"></label><label>Move to album<select name="album_id">{% for a in all_albums %}<option value="{{ a.id }}" {% if a.id == album.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></label><div class="actions"><button class="secondary" type="button" onclick="this.closest('dialog').close()">Cancel</button><button type="submit">Save changes</button></div></form>
+    <form method="post" action="{{ url_for('delete_photo',photo_id=p.id) }}" onsubmit="return confirm('Permanently delete this photo?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">Delete photo</button></form>
+  </dialog>
+{% else %}<div class="empty"><p>{% if selected_tag %}No photos match this tag. <a href="{{ url_for('album',album_id=album.id) }}">Show all photos</a>.{% else %}No photos here yet. Add some above.{% endif %}</p></div>{% endfor %}
+</section>
+<dialog id="edit-album"><h2>Edit album</h2><form method="post" action="{{ url_for('edit_album',album_id=album.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Album name<input name="name" value="{{ album.name }}" maxlength="100" required></label><label>Description<textarea name="description" maxlength="500" rows="3">{{ album.description }}</textarea></label><div class="actions"><button class="secondary" type="button" onclick="this.closest('dialog').close()">Cancel</button><button type="submit">Save album</button></div></form><form method="post" action="{{ url_for('delete_album',album_id=album.id) }}" onsubmit="return confirm('Delete this album AND all its photos permanently?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="danger">Delete album and photos</button></form></dialog>
+{% endblock %}
